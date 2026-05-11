@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5年 算数：平均学習シミュレーター</title>
+    <!-- ライブラリの読み込み -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        body { 
+            font-family: 'Noto Sans JP', sans-serif; 
+            overflow: hidden; /* スクロールを禁止 */
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="bg-[#F0F7F0]">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- アイコンコンポーネント ---
+        const IconBookOpen = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        );
+        const IconDroplets = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 16.3c2.2 0 4-1.8 4-4 0-3.3-4-6.3-4-6.3s-4 3-4 6.3c0 2.2 1.8 4 4 4z"/><path d="M17 18.5c2.5 0 4.5-2 4.5-4.5 0-3.7-4.5-7.1-4.5-7.1s-4.5 3.4-4.5 7.1c0 2.5 2 4.5 4.5 4.5z"/></svg>
+        );
+        const IconMoveHorizontal = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="18 8 22 12 18 16"/><polyline points="6 8 2 12 6 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+        );
+        const IconRefresh = ({ size = 20 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        );
+        const IconLightbulb = ({ size = 20 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5 5 0 0 0 8 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/></svg>
+        );
+        const IconCalculator = ({ size = 16 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="14"/><line x1="16" y1="18" x2="16" y2="18"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="12" y1="18" x2="12" y2="18"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="8" y1="18" x2="8" y2="18"/></svg>
+        );
+        const IconCheck = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        );
+        const IconX = ({ size = 20 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        );
+
+        // --- 設定値 ---
+        const INITIAL_DATA = [80, 100, 75, 80, 65];
+        const TARGET_AVERAGE = 80;
+        const SCALE_UNIT = 2.4; 
+        const MAX_SCALE = 120;
+        const CIRCLED_NUMBERS = ['①', '②', '③', '④', '⑤'];
+
+        // オレンジ断面
+        const OrangeHalfIcon = ({ className }) => (
+            <svg viewBox="0 0 100 100" className={className}>
+                <circle cx="50" cy="50" r="48" fill="#F97316" stroke="#EA580C" strokeWidth="2" />
+                <circle cx="50" cy="50" r="42" fill="white" />
+                {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
+                    <path
+                        key={angle}
+                        d="M50 50 L50 10 A40 40 0 0 1 78.28 21.72 Z"
+                        fill="#FB923C"
+                        transform={`rotate(${angle} 50 50)`}
+                        stroke="white"
+                        strokeWidth="2"
+                    />
+                ))}
+                <circle cx="50" cy="50" r="4" fill="white" />
+            </svg>
+        );
+
+        // しずく
+        const JuiceDrop = ({ className, delay = "0s" }) => (
+            <svg viewBox="0 0 20 30" className={`${className} fill-orange-500`} style={{ animationDelay: delay }}>
+                <path d="M10 0 C10 0 0 15 0 20 C0 25.5 4.5 30 10 30 C15.5 30 20 25.5 20 20 C20 15 10 0 10 0 Z" />
+            </svg>
+        );
+
+        const App = () => {
+            const [volumes, setVolumes] = useState([0, 0, 0, 0, 0]);
+            const [initialVolumes, setInitialVolumes] = useState([0, 0, 0, 0, 0]);
+            const [isSqueezing, setIsSqueezing] = useState(false);
+            const [selectedSource, setSelectedSource] = useState(null);
+            const [selectedDest, setSelectedDest] = useState(null);
+            const [transferAmount, setTransferAmount] = useState(5);
+            const [showAverageLine, setShowAverageLine] = useState(false);
+            const [showDifference, setShowDifference] = useState(false);
+            const [message, setMessage] = useState("下の「オレンジをしぼる」ボタンを押して始めましょう。");
+
+            const squeezeOranges = () => {
+                setIsSqueezing(true);
+                setVolumes([0, 0, 0, 0, 0]);
+                setInitialVolumes([0, 0, 0, 0, 0]);
+                setMessage("オレンジをしぼっています...");
+                
+                let steps = 60;
+                let currentStep = 0;
+                const interval = setInterval(() => {
+                    currentStep++;
+                    setVolumes(INITIAL_DATA.map(target => Math.round((target * currentStep) / steps)));
+                    if (currentStep >= steps) {
+                        clearInterval(interval);
+                        setIsSqueezing(false);
+                        setInitialVolumes([...INITIAL_DATA]);
+                        setMessage("カップをクリックして、ジュースを移動させてみましょう。");
+                    }
+                }, 20);
+            };
+
+            const handleCupClick = (index) => {
+                if (isSqueezing) return;
+                if (selectedSource === null) {
+                    if (volumes[index] > 0) {
+                        setSelectedSource(index);
+                        setMessage(`カップ ${CIRCLED_NUMBERS[index]} を選びました。移動先をクリックしてください。`);
+                    }
+                    return;
+                }
+                if (selectedSource === index) {
+                    setSelectedSource(null);
+                    setSelectedDest(null);
+                    setMessage("えらびなおします。");
+                    return;
+                }
+                setSelectedDest(index);
+                setMessage(`${CIRCLED_NUMBERS[selectedSource]} から ${CIRCLED_NUMBERS[index]} へ移す量を決めてください。`);
+            };
+
+            const executeTransfer = () => {
+                if (selectedSource === null || selectedDest === null) return;
+                const amount = Math.min(volumes[selectedSource], transferAmount);
+                const newVolumes = [...volumes];
+                newVolumes[selectedSource] -= amount;
+                newVolumes[selectedDest] += amount;
+                setVolumes(newVolumes);
+                setSelectedSource(null);
+                setSelectedDest(null);
+                setMessage(`${CIRCLED_NUMBERS[selectedSource]} から ${CIRCLED_NUMBERS[selectedDest]} へ ${amount}mL 移動しました。`);
+                if (newVolumes.every(v => v === TARGET_AVERAGE)) {
+                    setMessage("お見事！すべてのカップが 80mL になりました。これが「平均」です。");
+                }
+            };
+
+            const cancelTransfer = () => {
+                setSelectedSource(null);
+                setSelectedDest(null);
+                setMessage("移動をやめました。");
+            };
+
+            const reset = () => {
+                setVolumes([0, 0, 0, 0, 0]);
+                setInitialVolumes([0, 0, 0, 0, 0]);
+                setSelectedSource(null);
+                setSelectedDest(null);
+                setShowDifference(false);
+                setMessage("「オレンジをしぼる」ボタンを押して始めましょう。");
+            };
+
+            const handleInputChange = (e) => {
+                const val = parseInt(e.target.value) || 0;
+                setTransferAmount(Math.max(0, Math.min(100, val)));
+            };
+
+            const scaleMarkers = [0, 20, 40, 60, 80, 100, 120];
+
+            return (
+                <div className="h-screen w-full flex flex-col p-3 box-border">
+                    <div className="flex-1 flex flex-col bg-white shadow-xl rounded-[1.2rem] overflow-hidden border-[4px] border-[#2D8C3C]">
+                        
+                        {/* ヘッダー */}
+                        <div className="bg-[#2D8C3C] px-6 py-2 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3 text-white">
+                                <IconBookOpen />
+                                <h1 className="text-lg font-bold tracking-wider">5年 算数：平均</h1>
+                            </div>
+                            <div className="bg-white/20 px-3 py-0.5 rounded-full text-white text-[10px] font-bold border border-white/30 tracking-tight">学習シミュレーター</div>
+                        </div>
+
+                        {/* メインレイアウト */}
+                        <div className="flex-1 flex overflow-hidden">
+                            
+                            {/* 左列: サイドバー */}
+                            <div className="w-1/4 min-w-[250px] max-w-[300px] bg-[#F9FBF9] border-r border-[#2D8C3C]/10 flex flex-col p-4 space-y-4">
+                                <div className="p-3 bg-[#EAF5EB] rounded-xl border-l-4 border-[#FF9F00] shadow-sm">
+                                    <span className="text-[10px] font-black text-[#FF9F00] uppercase block mb-0.5">めあて</span>
+                                    <p className="text-sm font-bold text-[#1B5E20] leading-snug">
+                                        ジュースを移し替えて、同じ量に「ならして」みよう。
+                                    </p>
+                                </div>
+
+                                <div className="flex-1 flex flex-col justify-center">
+                                    {selectedSource !== null && selectedDest !== null ? (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-left duration-300 bg-white p-4 rounded-2xl shadow-md border border-orange-100">
+                                            <div className="flex items-center justify-center gap-2 font-bold text-slate-700">
+                                                <span className="bg-orange-500 text-white px-2 py-1 rounded-lg text-sm shadow-sm">{CIRCLED_NUMBERS[selectedSource]}</span>
+                                                <IconMoveHorizontal size={16} className="text-slate-400" />
+                                                <span className="bg-blue-500 text-white px-2 py-1 rounded-lg text-sm shadow-sm">{CIRCLED_NUMBERS[selectedDest]}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center">
+                                                <div className="flex items-center gap-2">
+                                                    <input type="number" value={transferAmount} onChange={handleInputChange} className="w-16 text-3xl font-black text-orange-600 text-center bg-orange-50 border-2 border-orange-200 rounded-xl px-1 py-1 outline-none focus:border-orange-500" />
+                                                    <span className="text-sm font-bold text-slate-400">mL</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={executeTransfer} className="flex-1 bg-[#FF9F00] hover:bg-[#F57C00] text-white font-black py-2.5 rounded-xl shadow-md active:scale-95 transition-all text-sm tracking-widest">移す</button>
+                                                <button onClick={cancelTransfer} className="flex-1 bg-white hover:bg-slate-50 text-slate-400 font-bold py-2.5 rounded-xl border border-slate-200 transition-all text-sm">やめる</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-5">
+                                            <div>
+                                                <h3 className="text-[11px] font-bold text-slate-400 mb-2 flex items-center gap-1 uppercase tracking-wider px-1">
+                                                    <IconMoveHorizontal size={14} className="text-[#2D8C3C]"/> 移動量
+                                                </h3>
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {[1, 5, 10, 20].map(val => (
+                                                        <button key={val} onClick={() => setTransferAmount(val)} className={`py-2 text-xs font-black border-2 transition-all rounded-lg ${transferAmount === val ? 'bg-[#FFA726] text-white border-[#E65100] shadow-sm' : 'bg-white text-slate-400 border-slate-100 hover:bg-slate-50'}`}>{val}mL</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <button onClick={squeezeOranges} disabled={isSqueezing} className="w-full flex items-center justify-center gap-2 bg-[#FFA726] hover:bg-[#FB8C00] disabled:bg-slate-200 text-white font-black text-xl py-5 rounded-2xl shadow-lg border-b-8 border-[#E65100] active:border-b-0 active:translate-y-2 transition-all"><IconDroplets size={28} /> しぼる！</button>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button onClick={() => setShowAverageLine(!showAverageLine)} className={`py-2.5 font-bold border-2 transition-all rounded-xl text-xs flex items-center justify-center gap-1.5 ${showAverageLine ? 'bg-sky-400 border-sky-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}><IconLightbulb size={16} /> ヒント</button>
+                                                <button onClick={reset} className="py-2.5 bg-white hover:bg-slate-50 text-slate-400 font-bold border-2 border-slate-200 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"><IconRefresh size={16} /> 最初から</button>
+                                            </div>
+                                            <button 
+                                                onClick={() => setShowDifference(!showDifference)} 
+                                                disabled={!initialVolumes[0]}
+                                                className={`w-full py-3 font-bold border-2 transition-all rounded-xl text-xs flex items-center justify-center gap-1.5 disabled:opacity-30 ${showDifference ? 'bg-[#2D8C3C] border-[#1B5E20] text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                            >
+                                                <IconCalculator size={16} /> {showDifference ? 'ちがいを隠す' : 'ちがいを表示'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="text-[9px] text-slate-300 text-center font-bold tracking-widest pt-2">© 5TH GRADE MATHEMATICS</div>
+                            </div>
+
+                            {/* 右列: シミュレーションエリア */}
+                            <div className="flex-1 flex flex-col p-6 bg-white relative">
+                                <div className="mb-6 flex justify-center">
+                                    <div className="relative">
+                                        <p className="px-8 py-4 bg-[#f8fafc] border-2 border-[#e2e8f0] rounded-2xl text-base font-bold text-slate-700 shadow-sm border-l-4 border-l-[#2D8C3C]">
+                                            {message}
+                                        </p>
+                                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#f8fafc] border-b-2 border-r-2 border-[#e2e8f0] rotate-45"></div>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 flex flex-col relative justify-end pb-4">
+                                    <div className="relative flex justify-around items-end h-[300px] px-4">
+                                        {/* 平均のヒント線 */}
+                                        {showAverageLine && (
+                                            <div className="absolute left-0 right-0 h-0 border-t-[3px] border-dashed border-sky-400 z-40 pointer-events-none" style={{ bottom: `${TARGET_AVERAGE * SCALE_UNIT + 4}px` }} />
+                                        )}
+
+                                        {volumes.map((vol, idx) => {
+                                            const diff = vol - initialVolumes[idx];
+                                            return (
+                                                <div key={idx} className="flex-1 max-w-[140px] px-3 relative h-full flex items-end">
+                                                    {isSqueezing && (
+                                                        <div className="absolute -top-16 left-1/2 -translate-x-1/2 flex flex-col items-center z-20">
+                                                            <OrangeHalfIcon className="w-12 h-12 animate-pulse" />
+                                                            <JuiceDrop className="w-2.5 h-3.5 animate-bounce mt-1" />
+                                                        </div>
+                                                    )}
+                                                    <div 
+                                                        className={`relative w-full border-l-[4px] border-r-[4px] border-b-[4px] transition-all cursor-pointer border-slate-500 rounded-b-sm
+                                                          ${selectedSource === idx ? 'bg-orange-50 ring-4 ring-orange-400 z-30 shadow-lg' : 
+                                                            selectedDest === idx ? 'bg-blue-50 ring-4 ring-blue-400 z-30 shadow-lg' : 'bg-white hover:bg-slate-50'}`}
+                                                        style={{ height: `${MAX_SCALE * SCALE_UNIT + 4}px` }}
+                                                        onClick={() => handleCupClick(idx)}
+                                                    >
+                                                        {/* 元の量 */}
+                                                        {!isSqueezing && initialVolumes[idx] > 0 && (
+                                                            <div className="absolute left-0 right-0 h-0 border-t-[2px] border-dashed border-orange-400/50 z-20 pointer-events-none" style={{ bottom: `${initialVolumes[idx] * SCALE_UNIT}px` }} />
+                                                        )}
+                                                        {/* 目盛り */}
+                                                        <div className="absolute inset-0 pointer-events-none z-0 opacity-60">
+                                                            {scaleMarkers.map(m => (
+                                                                <div key={m} className={`absolute left-0 right-0 h-0 border-t-2 ${m === 0 ? 'border-transparent' : 'border-slate-300'}`} style={{ bottom: `${m * SCALE_UNIT}px` }}>
+                                                                    <span className="absolute left-0.5 bottom-0 text-[10px] font-bold text-slate-400">{m}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        {/* ジュース */}
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-[#FFA726] opacity-80 transition-all duration-200 z-10 flex flex-col" style={{ height: `${vol * SCALE_UNIT}px` }}>
+                                                            <div className="w-full h-[1px] bg-[#E65100] opacity-40 shrink-0" />
+                                                            {vol > 12 && (
+                                                                <div className="flex-1 flex items-center justify-center p-1">
+                                                                    <span className="text-[#5D4037] font-black text-xs bg-white/70 px-2 py-0.5 rounded-full border border-orange-200 shadow-sm whitespace-nowrap">
+                                                                        {vol}mL
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* ラベルエリア */}
+                                    <div className="flex justify-around w-full px-4 mt-6 border-t-4 border-slate-100 pt-4 min-h-[80px]">
+                                        {volumes.map((vol, idx) => {
+                                            const diff = initialVolumes[idx] > 0 ? vol - initialVolumes[idx] : 0;
+                                            return (
+                                                <div key={idx} className="flex-1 flex flex-col items-center">
+                                                    {/* 増減表示 */}
+                                                    <div className="h-6 mb-1">
+                                                        {showDifference && !isSqueezing && initialVolumes[idx] > 0 && (
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border shadow-sm transition-all duration-300 ${
+                                                                diff > 0 ? 'bg-red-50 text-red-600 border-red-200' : 
+                                                                diff < 0 ? 'bg-blue-50 text-blue-600 border-blue-200' : 
+                                                                'bg-slate-50 text-slate-400 border-slate-200'
+                                                            }`}>
+                                                                {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '±0'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className={`text-4xl font-bold flex flex-col items-center transition-all 
+                                                        ${selectedSource === idx ? 'text-orange-600 scale-110' : 
+                                                          selectedDest === idx ? 'text-blue-600 scale-110' : 'text-slate-500'}`}>
+                                                        {CIRCLED_NUMBERS[idx]}
+                                                        <span className="text-[10px] font-bold mt-1 bg-slate-50 px-2 rounded-full border border-slate-200">
+                                                            {selectedSource === idx ? 'もと' : selectedDest === idx ? 'さき' : '　'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
